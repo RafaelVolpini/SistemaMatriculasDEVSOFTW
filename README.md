@@ -100,3 +100,68 @@ Como sistema, preciso checar, no fim do período de matrículas, se cada discipl
 *US16 — Encerramento automático de inscrições*
 Como sistema, preciso fechar as inscrições de uma disciplina assim que ela chegar a 60 alunos matriculados, para não estourar o limite de vagas.
 
+
+
+### Como rodar
+
+Requisitos: Java 17+ e Maven 3.9+ (sem banco de dados, sem Docker).
+
+```bash
+cd Codigo/Backend
+mvn test                 # regras de negócio (JUnit)
+mvn compile exec:java    # sobe em http://localhost:8080
+```
+
+Na primeira execução são criados dados de exemplo em `Codigo/Backend/data/*.json` (senha de todos os usuários: `123`):
+secretaria, 2 professores, 5 alunos, o curso "Engenharia de Software", 6 disciplinas e o semestre `2026/2` com período aberto por 10 minutos.
+O botão **Resetar dados** (aba Secretaria) apaga os arquivos e recria esse conjunto.
+
+### Estrutura
+
+| Pasta | Conteúdo |
+|---|---|
+| `Codigo/Backend/.../model` | Classes do diagrama de classes (POJOs, sem anotações de framework) e enums |
+| `Codigo/Backend/.../externo` | `SistemaCobranca` (<<external>>) e o mural de avisos exibidos como toast |
+| `Codigo/Backend/.../persistencia` | `BancoDeDados`: grava/carrega o modelo em arquivos JSON (Gson) — infraestrutura, fora do diagrama |
+| `Codigo/Backend/.../app` | `Main`, `ServicoAcademico` (camada de aplicação), `DataSeeder`, agendador de encerramento |
+| `Codigo/Backend/.../web` | Rotas Javalin que devolvem fragmentos HTML para o HTMX — infraestrutura, fora do diagrama |
+| `Codigo/Frontend/static` | `index.html`, `style.css` e `htmx.min.js` (local, sem CDN) |
+
+### Roteiro de teste
+
+1. **Aluno** → entrar como `elisa` → matricular em disciplinas obrigatórias/optativas. Cada matrícula gera um toast `[Sistema Cobranca]` com as disciplinas cobradas. Tentar a 5ª obrigatória ou a 3ª optativa gera um toast de erro. Cancelar recalcula a cobrança.
+2. **Professor** → entrar como `prof.hugo` → ver os alunos matriculados em cada disciplina.
+3. **Secretaria** → "Lotar (teste)" numa disciplina cria alunos fictícios até 60 vagas: as inscrições são encerradas por lotação (US16).
+4. **Secretaria** → "Encerrar agora" (ou definir um período curto e esperar): as disciplinas com menos de 3 alunos são canceladas e o Sistema de Cobrança recebe, para cada aluno afetado, a lista atualizada.
+
+### Como funciona o Sistema de Cobrança
+
+`SistemaCobranca.notificarCobranca(aluno, disciplinas)` é chamado pelo próprio domínio (relação "Notifica" de `Disciplina`):
+
+| Momento | Quem dispara | Aviso (toast) |
+|---|---|---|
+| Matrícula confirmada | `Disciplina.matricular` | `[Sistema Cobranca] Cobrança de Ana (RA 2026001): ES101, ES102 — 2 disciplinas. Incluída: ES102` |
+| Matrícula cancelada pelo aluno | `Disciplina.cancelarMatricula` | `... Removida da cobrança: ES102` |
+| Fim do período, disciplina sem quórum | `Disciplina.avaliarPermanenciaAoFimDoPeriodo` | `[Sistema] ES105 não atingiu o mínimo de 3 alunos (1/3) e será CANCELADA.` seguido de `[Sistema Cobranca] Cobrança de Carla (...): ES101 — 1 disciplina. Removida da cobrança: ES105` |
+
+O encerramento é **automático**: a cada 5 s um agendador (`ScheduledExecutorService`) procura períodos `ABERTO` com `dataFim` já vencida e chama `Secretaria.encerrarPeriodoMatriculas(semestre)`.
+A interface busca os avisos novos a cada 2 s (poller HTMX), então os toasts aparecem mesmo quando o encerramento acontece sem ninguém clicar.
+
+### Decisões além do enunciado
+
+- **A vaga reabre ao cancelar:** se a disciplina estava fechada por lotação e um aluno cancela, as inscrições são reabertas.
+- **A cobrança é avisada de novo** quando o aluno cancela e quando uma disciplina é cancelada por falta de quórum. O enunciado só exige o aviso na matrícula.
+- **Singletons `SistemaCobranca` e `MuralNotificacoes`:** `Disciplina.matricular(aluno, tipo)` não recebe a cobrança como parâmetro no diagrama, então o domínio a acessa por `getInstance()`. É estado global; os testes limpam esse estado antes de cada caso.
+- **`Secretaria` guarda uma referência transitória a `Cadastros`** (interface do domínio implementada por `BancoDeDados`) para registrar o que cadastra (dependências "Gerencia").
+- **O período aberto é conferido na camada de aplicação** (`ServicoAcademico`), porque no diagrama `Disciplina` não conhece `Semestre`.
+- **Currículo:** a Secretaria marca as disciplinas, que entram por `Semestre.gerarCurriculo(disciplinas)`, e depois `Secretaria.gerarCurriculoSemestre(semestre)` valida e registra o semestre. Cada `Disciplina` funciona como a turma de um semestre (tem status e vagas próprios), então só pode estar em um currículo. Para montar outro semestre, é preciso cadastrar novas disciplinas.
+- **Créditos do curso:** `Curso.numeroCreditos` é o total de créditos do curso (ex.: 240). É um dado descritivo e não entra em nenhuma regra de matrícula.
+- **Atributos de navegação:** as associações do diagrama exigem atributos que não aparecem nas caixas: `Matricula.aluno`, `Matricula.disciplina`, `Disciplina.matriculas`, `Disciplina.professor`, `Disciplina.curso` e `Semestre.periodo`.
+- **`Date` foi implementado como `LocalDateTime`**, para permitir períodos de poucos minutos nos testes.
+- **Login por cookie simples:** a senha é validada por `Usuario.autenticar`, sem nenhuma outra segurança (fora do escopo do protótipo).
+
+### Correções a aplicar no diagrama de classes
+
+- `Secretaria.definirPeriodosMatriculas(inicio: Date, fim: Date)` → **`definirPeriodoMatriculas(semestre: Semestre, inicio: Date, fim: Date): void`** (sem o semestre, a Secretaria não sabe qual período abrir).
+- `cadastrarCusro` → `cadastrarCurso`.
+- `encerrarPeriodoMatriculas(semestre: Semestre` → fechar o parêntese: `encerrarPeriodoMatriculas(semestre: Semestre): void`.

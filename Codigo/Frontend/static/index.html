@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sistema de Matrículas</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/htmx.min.js"></script>
+</head>
+<body>
+<header class="topo">
+    <div class="topo-conteudo">
+        <div class="marca">
+            <span class="logo" aria-hidden="true">SM</span>
+            <div>
+                <strong>Sistema de Matrículas</strong>
+                <small>Protótipo · troque de papel pelas abas</small>
+            </div>
+        </div>
+        <nav id="abas" class="abas"></nav>
+    </div>
+</header>
+
+<main id="conteudo" hx-get="/ui/aba/secretaria" hx-trigger="load">
+    <div class="carregando">Carregando…</div>
+</main>
+
+<!-- Toasts: avisos do [Sistema Cobranca] e do [Sistema], buscados pelo poller abaixo -->
+<div id="toasts" aria-live="polite"></div>
+<div id="poller" hx-get="/ui/notificacoes?desde=-1" hx-trigger="load" hx-swap="outerHTML"></div>
+</body>
+</html>
