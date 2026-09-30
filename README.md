@@ -19,7 +19,7 @@ Na prática, durante o período de matrículas o aluno entra no sistema, escolhe
 
 ## Diagrama de Casos de Uso
 
-<img width="1384" height="1600" alt="casodeusoMatricula" src="https://github.com/user-attachments/assets/0262fc28-db84-43fa-9277-031c1e36ebe3" />
+![Diagrama de Casos de Uso](Documentação/casos-de-uso-sp03.png)
 
 ## Casos de Uso
 
@@ -41,6 +41,7 @@ Na prática, durante o período de matrículas o aluno entra no sistema, escolhe
 | UC14 | Verificar Número Mínimo de Alunos | Sistema | No fim do período, confere se a disciplina fechou com pelo menos 3 alunos. |
 | UC15 | Notificar Sistema de Cobrança | Sistema | Avisa a cobrança sempre que uma matrícula é confirmada. |
 | UC16 | Cancelar Disciplina | Sistema | Estende UC14: cancela a disciplina que não bateu o mínimo de alunos. |
+| UC17 | Encerrar Inscrições por lotação | Sistema | Estende UC13: fecha as inscrições quando a disciplina atinge 60 alunos. |
 
 ## Histórias de Usuário
 
@@ -160,8 +161,12 @@ A interface busca os avisos novos a cada 2 s (poller HTMX), então os toasts apa
 - **`Date` foi implementado como `LocalDateTime`**, para permitir períodos de poucos minutos nos testes.
 - **Login por cookie simples:** a senha é validada por `Usuario.autenticar`, sem nenhuma outra segurança (fora do escopo do protótipo).
 
-### Correções a aplicar no diagrama de classes
+### Evolução e Correções Aplicadas aos Modelos (Sprint 3)
 
-- `Secretaria.definirPeriodosMatriculas(inicio: Date, fim: Date)` → **`definirPeriodoMatriculas(semestre: Semestre, inicio: Date, fim: Date): void`** (sem o semestre, a Secretaria não sabe qual período abrir).
-- `cadastrarCusro` → `cadastrarCurso`.
-- `encerrarPeriodoMatriculas(semestre: Semestre` → fechar o parêntese: `encerrarPeriodoMatriculas(semestre: Semestre): void`.
+- **Sintaxe UML:** Correção da direção das setas de `<<extend>>` no Diagrama de Casos de Uso.
+- **Regras de Negócio:** Adição do `<<include>>` para o *Sistema de Cobrança* a partir do caso de uso *Cancelar Matrícula* (alinhando com a implementação no código).
+- **Diagrama de Classes:**
+  - `Secretaria.definirPeriodosMatriculas(inicio: Date, fim: Date)` → **`definirPeriodoMatriculas(semestre: Semestre, inicio: LocalDateTime, fim: LocalDateTime): void`**.
+  - `cadastrarCusro` corrigido para **`cadastrarCurso`**.
+  - `encerrarPeriodoMatriculas(semestre: Semestre` teve a assinatura fechada e corrigida: **`encerrarPeriodoMatriculas(semestre: Semestre): void`**.
+  - Inclusão dos atributos de navegação de todas as classes para refletir a implementação do código final.
